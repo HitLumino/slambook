@@ -25,19 +25,21 @@
 namespace myslam
 {
 
-// Pinhole RGBD camera model
+// Pinhole RGBD camera model 
+
 class Camera
 {
 public:
-    typedef std::shared_ptr<Camera> Ptr;
+    typedef std::shared_ptr<Camera> Ptr;//Ptr是camera类型的共享指针
     float   fx_, fy_, cx_, cy_, depth_scale_;  // Camera intrinsics 
 
-    Camera();
+    Camera();//默认构造函数
     Camera ( float fx, float fy, float cx, float cy, float depth_scale=0 ) :
         fx_ ( fx ), fy_ ( fy ), cx_ ( cx ), cy_ ( cy ), depth_scale_ ( depth_scale )
-    {}
+    {}//构造函数传参进来fx,fy,cx,cy即给成员变量赋值
 
     // coordinate transform: world, camera, pixel
+    //坐标变换
     Vector3d world2camera( const Vector3d& p_w, const SE3& T_c_w );
     Vector3d camera2world( const Vector3d& p_c, const SE3& T_c_w );
     Vector2d camera2pixel( const Vector3d& p_c );
