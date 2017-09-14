@@ -1,4 +1,4 @@
-# slambook
+# slambook 简介
 This is the code written for my new book about visual SLAM. It will come in April 2017. I am reviewing the context and codes right now.
 
 It is highy recommended to download the code and run it in you machine because you can learn more and even modify it by doing so. In this repo, the code is stored by chapters like "ch2" and "ch4". Note that chapter 9 is a project so I stored it in the "project" directory.
