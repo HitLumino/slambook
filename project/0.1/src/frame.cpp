@@ -44,11 +44,11 @@ Frame::Ptr Frame::createFrame()
     return Frame::Ptr( new Frame(factory_id++) );
 }
 
-double Frame::findDepth ( const cv::KeyPoint& kp )
+double Frame::findDepth ( const cv::KeyPoint& kp )//返回特征点的深度信息
 {
-    int x = cvRound(kp.pt.x);
+    int x = cvRound(kp.pt.x);//cvRound 返回跟参数最接近的整数值
     int y = cvRound(kp.pt.y);
-    ushort d = depth_.ptr<ushort>(y)[x];
+    ushort d = depth_.ptr<ushort>(y)[x];//返回depth_深度图像(x,y)处的深度
     if ( d!=0 )
     {
         return double(d)/camera_->depth_scale_;
@@ -73,7 +73,7 @@ double Frame::findDepth ( const cv::KeyPoint& kp )
 
 Vector3d Frame::getCamCenter() const
 {
-    return T_c_w_.inverse().translation();
+    return T_c_w_.inverse().translation();//平移向量
 }
 
 bool Frame::isInFrame ( const Vector3d& pt_world )

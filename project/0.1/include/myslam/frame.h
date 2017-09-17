@@ -35,7 +35,7 @@ public:
     unsigned long                  id_;         // id of this frame
     double                         time_stamp_; // when it is recorded
     SE3                            T_c_w_;      // transform from world to camera
-    Camera::Ptr                    camera_;     // Pinhole RGBD Camera model 
+    Camera::Ptr                    camera_;     // Pinhole RGBD Camera model     生成camera对象
     Mat                            color_, depth_; // color and depth image 
     
 public: // data members 
@@ -43,7 +43,7 @@ public: // data members
     Frame( long id, double time_stamp=0, SE3 T_c_w=SE3(), Camera::Ptr camera=nullptr, Mat color=Mat(), Mat depth=Mat() );
     ~Frame();
     
-    // factory function
+    // factory function????
     static Frame::Ptr createFrame(); 
     
     // find the depth in depth map
