@@ -17,7 +17,7 @@ int main ( int argc, char** argv )
         return 1;
     }
 
-    myslam::Config::setParameterFile ( argv[1] );
+    myslam::Config::setParameterFile ( argv[1] );//生成config对象
     myslam::VisualOdometry::Ptr vo ( new myslam::VisualOdometry );
 
     string dataset_dir = myslam::Config::get<string> ( "dataset_dir" );

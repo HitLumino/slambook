@@ -34,6 +34,14 @@
 
 namespace myslam
 {
+/*EdgeProjectXYZRGBD: 观测值是3维，由Eigen::Vector3d表示
+ * g2o::VertexSBAPointXYZ <-------------> g2o::VertexSE3Expmap>
+ *         (point)                               (pose)
+ * _error = _measurement - camera_->camera2pixel ( pose->estimate().map(point_) );
+ *          第二张图的（u，v）：z-(KP+t)
+ * _measurement:第二张图像上的像素点坐标
+ *
+*/
 class EdgeProjectXYZRGBD : public g2o::BaseBinaryEdge<3, Eigen::Vector3d, g2o::VertexSBAPointXYZ, g2o::VertexSE3Expmap>
 {
 public:
@@ -59,7 +67,14 @@ public:
     
     Vector3d point_;
 };
-
+/*EdgeProjectXYZRGBD: 观测值是2维，由Eigen::Vector2d表示
+ * only to optimize the pose, no point
+ * g2o::VertexSE3Expmap> <-------------> g2o::VertexSE3Expmap>
+ *         (pose)                               (pose)
+ *  _error = _measurement - camera_->camera2pixel ( pose->estimate().map(point_) );
+ * 这个point_不是节点
+ *         第二张图的（u，v）：z-(KP+t)
+*/
 class EdgeProjectXYZ2UVPoseOnly: public g2o::BaseUnaryEdge<2, Eigen::Vector2d, g2o::VertexSE3Expmap >
 {
 public:

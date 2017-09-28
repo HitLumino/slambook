@@ -2,7 +2,18 @@
 
 namespace myslam
 {
-void EdgeProjectXYZRGBD::computeError()
+/*这个computeError()用了两个节点
+ * g2o::VertexSBAPointXYZ*> ( _vertices[0])
+ * g2o::VertexSE3Expmap*> ( _vertices[1])
+ * _error = _measurement - pose->estimate().map ( point->estimate() )
+ * point->estimate()优化，对地图点优化
+ * pose->estimate().map ( point->estimate())
+ * 两种节点pose 和 point
+ * point---->空间点   pose ---->R,T
+ * map()----> R*P+T----->_error=P'-R*P+T
+ * _measurement:第二张图像上的像素点坐标
+*/
+void EdgeProjectXYZRGBD::computeError()//这个computeError()用了两个节点
 {
     const g2o::VertexSBAPointXYZ* point = static_cast<const g2o::VertexSBAPointXYZ*> ( _vertices[0] );
     const g2o::VertexSE3Expmap* pose = static_cast<const g2o::VertexSE3Expmap*> ( _vertices[1] );
@@ -43,7 +54,15 @@ void EdgeProjectXYZRGBD::linearizeOplus()
     _jacobianOplusXj ( 2,4 ) = 0;
     _jacobianOplusXj ( 2,5 ) = -1;
 }
-
+/*这个computeError()只用了1个节点
+ * g2o::VertexSBAPointXYZ*> ( _vertices[0])
+ * _error = _measurement - pose->estimate().map ( point_ );
+ * point_未做优化，也就是地图的点没有优化
+ * pose->estimate().map ( point->estimate())
+ * 两种节点pose 和 point
+ * point---->空间点   pose ---->R,T
+ * map()----> R*P+T----->_error=P'-R*P+T
+*/
 void EdgeProjectXYZRGBDPoseOnly::computeError()
 {
     const g2o::VertexSE3Expmap* pose = static_cast<const g2o::VertexSE3Expmap*> ( _vertices[0] );

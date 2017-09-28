@@ -126,7 +126,7 @@ void VisualOdometry::featureMatching()
     vector<MapPoint::Ptr> candidate;
     for ( auto& allpoints: map_->map_points_ )
     {
-        MapPoint::Ptr& p = allpoints.second;
+        MapPoint::Ptr& p = allpoints.second;//unordered_map<unsigned long, MapPoint::Ptr >  map_points_;
         // check if p in curr frame image 
         if ( curr_->isInFrame(p->pos_) )
         {

@@ -181,6 +181,7 @@ void VisualOdometry::poseEstimationPnP()
     );
     Mat rvec, tvec, inliers;
     cv::solvePnPRansac( pts3d, pts2d, K, Mat(), rvec, tvec, false, 100, 4.0, 0.99, inliers );
+    //inliers Output vector that contains indices of inliers in objectPoints and imagePoints
     num_inliers_ = inliers.rows;
     cout<<"pnp inliers: "<<num_inliers_<<endl;
     T_c_r_estimated_ = SE3(
@@ -189,43 +190,45 @@ void VisualOdometry::poseEstimationPnP()
     );
     
     // using bundle adjustment to optimize the pose 
-    typedef g2o::BlockSolver<g2o::BlockSolverTraits<6,2>> Block;
-    Block::LinearSolverType* linearSolver = new g2o::LinearSolverDense<Block::PoseMatrixType>();
+    //初始化g2o
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<6,2>> Block;//求解器 pose维度是6，landmark维度是2
+    Block::LinearSolverType* linearSolver = new g2o::LinearSolverDense<Block::PoseMatrixType>();//线性方程求解器
     Block* solver_ptr = new Block( linearSolver );
-    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg ( solver_ptr );
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg ( solver_ptr );//Levenberg迭代
     g2o::SparseOptimizer optimizer;
-    optimizer.setAlgorithm ( solver );
+    optimizer.setAlgorithm ( solver );//Levenberg迭代优化
     
-    g2o::VertexSE3Expmap* pose = new g2o::VertexSE3Expmap();
-    pose->setId ( 0 );
+    //Vertex节点
+    g2o::VertexSE3Expmap* pose = new g2o::VertexSE3Expmap();//SE3相机位姿节点
+    pose->setId ( 0 );//节点序号
     pose->setEstimate ( g2o::SE3Quat (
-        T_c_r_estimated_.rotation_matrix(), 
-        T_c_r_estimated_.translation()
+        T_c_r_estimated_.rotation_matrix(), //R
+        T_c_r_estimated_.translation()      //T
     ) );
-    optimizer.addVertex ( pose );
+    optimizer.addVertex ( pose );//添加节点pose
 
-    // edges
+    // edges 边
     for ( int i=0; i<inliers.rows; i++ )
     {
         int index = inliers.at<int>(i,0);
         // 3D -> 2D projection
-        EdgeProjectXYZ2UVPoseOnly* edge = new EdgeProjectXYZ2UVPoseOnly();
+        EdgeProjectXYZ2UVPoseOnly* edge = new EdgeProjectXYZ2UVPoseOnly();//3d点的投影
         edge->setId(i);
-        edge->setVertex(0, pose);
+        edge->setVertex(0, pose);//一元边，所以没有（1，...）
         edge->camera_ = curr_->camera_.get();
         edge->point_ = Vector3d( pts3d[index].x, pts3d[index].y, pts3d[index].z );
-        edge->setMeasurement( Vector2d(pts2d[index].x, pts2d[index].y) );
-        edge->setInformation( Eigen::Matrix2d::Identity() );
+        edge->setMeasurement( Vector2d(pts2d[index].x, pts2d[index].y) );//相机坐标（u，v）即_measure
+        edge->setInformation( Eigen::Matrix2d::Identity() );//
         optimizer.addEdge( edge );
     }
     
-    optimizer.initializeOptimization();
-    optimizer.optimize(10);
+    optimizer.initializeOptimization();//初始化
+    optimizer.optimize(10);//优化
     
     T_c_r_estimated_ = SE3 (
         pose->estimate().rotation(),
         pose->estimate().translation()
-    );
+    );//此时结果是g2o优化之后的R，T
 }
 
 bool VisualOdometry::checkEstimatedPose()
