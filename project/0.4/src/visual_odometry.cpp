@@ -139,6 +139,7 @@ void VisualOdometry::featureMatching()
     
     matcher_flann_.match ( desp_map, descriptors_curr_, matches );
     // select the best matches
+    //求向量中最小值
     float min_dis = std::min_element (
                         matches.begin(), matches.end(),
                         [] ( const cv::DMatch& m1, const cv::DMatch& m2 )

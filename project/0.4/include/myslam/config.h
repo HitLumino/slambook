@@ -27,19 +27,19 @@ namespace myslam
 class Config
 {
 private:
-    static std::shared_ptr<Config> config_; 
+    static std::shared_ptr<Config> config_; //私有静态成员变量 config_
     cv::FileStorage file_;
     
-    Config () {} // private constructor makes a singleton
+    Config () {} //私有构造函数使之变成单件模式
 public:
     ~Config();  // close the file when deconstructing 
     
     // set a new config file 
-    static void setParameterFile( const std::string& filename ); 
+    static void setParameterFile( const std::string& filename ); //静态方法
     
     // access the parameter values
     template< typename T >
-    static T get( const std::string& key )
+    static T get( const std::string& key )//静态方法
     {
         return T( Config::config_->file_[key] );
     }

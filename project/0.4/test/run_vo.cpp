@@ -88,7 +88,7 @@ int main ( int argc, char** argv )
                 Twc.rotation_matrix() ( 2,0 ), Twc.rotation_matrix() ( 2,1 ), Twc.rotation_matrix() ( 2,2 )
             ),
             cv::Affine3d::Vec3 (
-                Twc.translation() ( 0,0 ), Twc.translation() ( 1,0 ), Twc.translation() ( 2,0 )
+                Twc.translation() ( 0,0 ), Twc.translation() ( 1,0 ), Twc.translation() ( 2,0 )//也可以（0），（1），（2）
             )
         );
 
