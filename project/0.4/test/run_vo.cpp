@@ -17,7 +17,8 @@ int main ( int argc, char** argv )
         return 1;
     }
 
-    myslam::Config::setParameterFile ( argv[1] );//生成config对象
+    //myslam::Config::setParameterFile ( argv[1] );
+    myslam::Config::setParameterFile ("/home/lumino/hitlumino/slambook/project/0.4/config/default.yaml" );
     myslam::VisualOdometry::Ptr vo ( new myslam::VisualOdometry );
 
     string dataset_dir = myslam::Config::get<string> ( "dataset_dir" );
@@ -88,7 +89,7 @@ int main ( int argc, char** argv )
                 Twc.rotation_matrix() ( 2,0 ), Twc.rotation_matrix() ( 2,1 ), Twc.rotation_matrix() ( 2,2 )
             ),
             cv::Affine3d::Vec3 (
-                Twc.translation() ( 0,0 ), Twc.translation() ( 1,0 ), Twc.translation() ( 2,0 )//也可以（0），（1），（2）
+                Twc.translation() ( 0,0 ), Twc.translation() ( 1,0 ), Twc.translation() ( 2,0 )
             )
         );
 
@@ -97,7 +98,7 @@ int main ( int argc, char** argv )
         {
             myslam::MapPoint::Ptr p = pt.second;
             Vector2d pixel = pFrame->camera_->world2pixel ( p->pos_, pFrame->T_c_w_ );
-            cv::circle ( img_show, cv::Point2f ( pixel ( 0,0 ),pixel ( 1,0 ) ), 5, cv::Scalar ( 0,255,0 ), 2 );
+            cv::circle ( img_show, cv::Point2f ( pixel ( 0,0 ),pixel ( 1,0 ) ), 5, cv::Scalar ( 0,255,0 ), 1 );
         }
 
         cv::imshow ( "image", img_show );

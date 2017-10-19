@@ -216,7 +216,7 @@ XML/YAML/JSON file storage class that encapsulates all the information necessary
     config_->file_.isOpened()  
     config_->file_.release()
 ## Frame类：
-    ```c
+```c
 KeyPoint(Point2f _pt, float _size, float _angle=-1, float _response=0, int _octave=0, int _class_id=-1);
     /**
     @param _pt x & y coordinates of the keypoint
@@ -226,8 +226,9 @@ KeyPoint(Point2f _pt, float _size, float _angle=-1, float _response=0, int _octa
     @param _octave pyramid octave in which the keypoint has been detected
     @param _class_id object id
      */
-    ```  
-    Frame类：帧定义了ID/时间戳/位姿/相机模型/图像这几个量；方法：创建frame/寻找深度/获取相机光心/判断某个点是否在视野内等等。
+```  
+
+Frame类：帧定义了ID/时间戳/位姿/相机模型/图像这几个量；方法：创建frame/寻找深度/获取相机光心/判断某个点是否在视野内等等。
 
 ## VisualOdometry  
 
@@ -406,8 +407,11 @@ void VisualOdometry::computeDescriptors()
  2. 判断某个点是否在视野内/是不是在当前帧中 `isInFrame()`  
  3. 是，添加到候选点中`candidate.push_back( p )`，加入临时地图中`Mat desp_map`；且计数（出现的次数）`p->visible_times_++`。  
  4. `matcher_flann_`匹配。前一参数`desp_map`是地图中候选点的描述子(第一帧的时候也是加入了的，也就是说，第一次匹配就是当前帧与第一张图片（已默认全部添加到地图中）的描述子匹配)  
- ___知识点补充___： 
- 5.
+ 5. 匹配完成求出最佳匹配值，乘以一个系数与30，来判断这个match的好坏，至此，匹配完成。  
+ 6. 匹配后，将记录匹配对，这个对不是2d-2d，而是记录map点的3d坐标match_3dpts_.push_back( candidate[m.queryIdx] )与下一帧的2d图像坐标`match_2dkp_index_.push_back( m.trainIdx )`，这个3维坐标也就是前一帧的图像坐标在空间中的投影。  
+
+ ___知识点补充：___  
+
 * `DMatch`类
 
 ```c
@@ -473,7 +477,9 @@ void VisualOdometry::featureMatching()
     {
         return m1.distance < m2.distance;
     } )->distance;//返回最小值
-
+//这两个是关键！！！每次都要清零，每一帧都要与地图中的点匹配。所以新的帧来了就要先清零。
+//首先要知道PNP是怎么回事，一般的PNP是指上一帧的特征点投影到空间（地图）中的3维点，与下一帧图像对于匹配的特征点之间的最小化重投影误差。
+//OK!在此过程中，上一帧，特征点匹配变成了（地图中的点（3d）<--->当前帧的特征点（2d)做最小化重投影误差)
     match_3dpts_.clear();
     match_2dkp_index_.clear();
     for ( cv::DMatch& m : matches )
@@ -488,4 +494,320 @@ void VisualOdometry::featureMatching()
     cout<<"match cost time: "<<timer.elapsed() <<endl;
 }
 ```
-* 方法之poseEstimationPnP()
+* 方法之poseEstimationPnP()    
+  1. 位置估计PNP
+  2. g2o优化
+```c
+void VisualOdometry::poseEstimationPnP()
+{
+    // construct the 3d 2d observations
+    vector<cv::Point3f> pts3d;//地图点坐标
+    vector<cv::Point2f> pts2d;//像素点坐标
+//转换格式，从`<KeyPoint>`格式转换成`<vector>`，为cv::solvePnPRansac(）传参做准备，其实就是一个复制过程
+    for ( int index:match_2dkp_index_ )
+    //vector<int>  match_2dkp_index_;  // matched 2d pixels (index of kp_curr)
+    {
+        pts2d.push_back ( keypoints_curr_[index].pt );
+        //vector<cv::KeyPoint>    keypoints_curr_;    // 当前帧的关键点
+    }
+    for ( MapPoint::Ptr pt:match_3dpts_ )//vector<MapPoint::Ptr>   match_3dpts_;       // matched 3d points 
+    {
+        pts3d.push_back( pt->getPositionCV() );
+        //inline cv::Point3f getPositionCV() const {
+        // return cv::Point3f( pos_(0,0), pos_(1,0), pos_(2,0) );
+        // }
+    }
+
+    Mat K = ( cv::Mat_<double> ( 3,3 ) <<
+              ref_->camera_->fx_, 0, ref_->camera_->cx_,
+              0, ref_->camera_->fy_, ref_->camera_->cy_,
+              0,0,1
+            );
+    Mat rvec, tvec, inliers;
+    cv::solvePnPRansac ( pts3d, pts2d, K, Mat(), rvec, tvec, false, 100, 4.0, 0.99, inliers );
+    num_inliers_ = inliers.rows;
+    cout<<"pnp inliers: "<<num_inliers_<<endl;
+    T_c_w_estimated_ = SE3 (
+                           SO3 ( rvec.at<double> ( 0,0 ), rvec.at<double> ( 1,0 ), rvec.at<double> ( 2,0 ) ),
+                           Vector3d ( tvec.at<double> ( 0,0 ), tvec.at<double> ( 1,0 ), tvec.at<double> ( 2,0 ) )
+                       );
+
+    //g2o
+    // using bundle adjustment to optimize the pose
+    typedef g2o::BlockSolver<g2o::BlockSolverTraits<6,2>> Block;
+    Block::LinearSolverType* linearSolver = new g2o::LinearSolverDense<Block::PoseMatrixType>();
+    Block* solver_ptr = new Block ( linearSolver );
+    g2o::OptimizationAlgorithmLevenberg* solver = new g2o::OptimizationAlgorithmLevenberg ( solver_ptr );
+    g2o::SparseOptimizer optimizer;
+    optimizer.setAlgorithm ( solver );
+
+    g2o::VertexSE3Expmap* pose = new g2o::VertexSE3Expmap();
+    pose->setId ( 0 );
+    pose->setEstimate ( g2o::SE3Quat (
+        T_c_w_estimated_.rotation_matrix(), T_c_w_estimated_.translation()
+    ));//估计的目标对象
+    optimizer.addVertex ( pose );//添加顶点
+
+    // edges
+    for ( int i=0; i<inliers.rows; i++ )
+    {
+        int index = inliers.at<int> ( i,0 );
+        // 3D -> 2D projection
+        //一元边
+        EdgeProjectXYZ2UVPoseOnly* edge = new EdgeProjectXYZ2UVPoseOnly();
+        edge->setId ( i );
+        edge->setVertex ( 0, pose );
+        edge->camera_ = curr_->camera_.get();
+        edge->point_ = Vector3d ( pts3d[index].x, pts3d[index].y, pts3d[index].z );
+        edge->setMeasurement ( Vector2d ( pts2d[index].x, pts2d[index].y ) );
+        edge->setInformation ( Eigen::Matrix2d::Identity() );
+        optimizer.addEdge ( edge );
+        // set the inlier map points 
+        match_3dpts_[index]->matched_times_++;//匹配次数计数
+    }
+
+    optimizer.initializeOptimization();
+    optimizer.optimize ( 10 );
+
+    T_c_w_estimated_ = SE3 (
+        pose->estimate().rotation(),
+        pose->estimate().translation()
+    );
+    
+    cout<<"T_c_w_estimated_: "<<endl<<T_c_w_estimated_.matrix()<<endl;
+}
+```
+* 方法之checkEstimatedPose()和checkKeyFrame()
+  1. 内点数量要求  
+  2. 运动是否过于激烈   
+  3. 关键帧不能取太相似
+
+***知识补充：***
+```c
+//指数映射  对数映射
+static SE3
+  exp                        (const Vector6d & update);
+
+  static Vector6d
+  log                        (const SE3 & se3);
+```
+
+```c
+bool VisualOdometry::checkEstimatedPose()
+{
+    // check if the estimated pose is good
+    if ( num_inliers_ < min_inliers_ )
+    {
+        cout<<"reject because inlier is too small: "<<num_inliers_<<endl;
+        return false;
+    }
+    // if the motion is too large, it is probably wrong
+    //T_c_w_estimated_已经在PNP后赋值
+    //ref_->T_c_w_，参考系的世界到相机转换；
+    //T_c_w_estimated_：上一帧到当前帧的T。他的逆就是c->r的转换。
+    SE3 T_r_c = ref_->T_c_w_ * T_c_w_estimated_.inverse();
+    Sophus::Vector6d d = T_r_c.log();//对数映射
+    if ( d.norm() > 5.0 )
+    {
+        cout<<"reject because motion is too large: "<<d.norm() <<endl;
+        return false;
+    }
+    return true;
+}
+
+bool VisualOdometry::checkKeyFrame()
+{
+    //ref_->T_c_w_，参考系的世界到相机转换；
+    //T_c_w_estimated_：上一帧到当前帧的T。他的逆就是c->r的转换。
+    SE3 T_r_c = ref_->T_c_w_ * T_c_w_estimated_.inverse();
+    Sophus::Vector6d d = T_r_c.log();//T的对数映射---->6维向量
+    Vector3d trans = d.head<3>(); //获取向量的前n个元素：vector.head(n);   
+    Vector3d rot = d.tail<3>();//获取向量尾部的n个元素：vector.tail(n);
+    if ( rot.norm() >key_frame_min_rot || trans.norm() >key_frame_min_trans )
+        return true;
+    return false;
+}
+```
+* 方法之addKeyFrame()
+
+```c
+void VisualOdometry::addKeyFrame()
+{
+    if ( map_->keyframes_.empty() )
+    {
+        // first key-frame, add all 3d points into map
+        for ( size_t i=0; i<keypoints_curr_.size(); i++ )
+        {
+            double d = curr_->findDepth ( keypoints_curr_[i] );
+            if ( d < 0 ) 
+                continue;
+            Vector3d p_world = ref_->camera_->pixel2world (
+                Vector2d ( keypoints_curr_[i].pt.x, keypoints_curr_[i].pt.y ), curr_->T_c_w_, d
+            );
+            Vector3d n = p_world - ref_->getCamCenter();
+            n.normalize();//归一化
+            MapPoint::Ptr map_point = MapPoint::createMapPoint(
+                p_world, n, descriptors_curr_.row(i).clone(), curr_.get()
+            );//生成mappoint
+            map_->insertMapPoint( map_point );//地图里添加map_point
+        }
+    }
+    
+    map_->insertKeyFrame ( curr_ );
+    ref_ = curr_;
+}
+```
+
+## MapPoint类
+### mappoint.cpp
+```c
+namespace myslam
+{
+//默认构造函数
+MapPoint::MapPoint()
+: id_(-1), pos_(Vector3d(0,0,0)), norm_(Vector3d(0,0,0)), good_(true), visible_times_(0), matched_times_(0)
+{
+
+}
+//构造函数
+MapPoint::MapPoint ( long unsigned int id, const Vector3d& position, const Vector3d& norm, Frame* frame, const Mat& descriptor )
+: id_(id), pos_(position), norm_(norm), good_(true), visible_times_(1), matched_times_(1), descriptor_(descriptor)
+{
+    observed_frames_.push_back(frame);
+}
+//默认方法
+MapPoint::Ptr MapPoint::createMapPoint()
+{
+    return MapPoint::Ptr( 
+        new MapPoint( factory_id_++, Vector3d(0,0,0), Vector3d(0,0,0) )
+    );
+}
+//方法
+MapPoint::Ptr MapPoint::createMapPoint ( 
+    const Vector3d& pos_world, 
+    const Vector3d& norm, 
+    const Mat& descriptor, 
+    Frame* frame )
+{
+    return MapPoint::Ptr( 
+        new MapPoint( factory_id_++, pos_world, norm, frame, descriptor )//调用构造函数
+    );
+}
+
+unsigned long MapPoint::factory_id_ = 0;
+
+}
+```
+## Map类
+### map.cpp
+* insertKeyFrame
+* insertMapPoint  
+
+没有就添加  
+```c
+namespace myslam
+{
+
+void Map::insertKeyFrame ( Frame::Ptr frame )
+{
+    cout<<"Key frame size = "<<keyframes_.size()<<endl;
+    if ( keyframes_.find(frame->id_) == keyframes_.end() )
+    {
+        keyframes_.insert( make_pair(frame->id_, frame) );
+    }
+    else
+    {
+        keyframes_[ frame->id_ ] = frame;
+    }
+}
+
+void Map::insertMapPoint ( MapPoint::Ptr map_point )
+{
+    if ( map_points_.find(map_point->id_) == map_points_.end() )
+    {
+        map_points_.insert( make_pair(map_point->id_, map_point) );
+    }
+    else 
+    {
+        map_points_[map_point->id_] = map_point;
+    }
+}
+
+}
+```
+* ***方法之addMapPoints()***
+
+```c
+void VisualOdometry::addMapPoints()
+{
+    // add the new map points into map
+    //用一个bool型的vector，大小为当前特征点数，初始化为false.
+    vector<bool> matched(keypoints_curr_.size(), false); 
+    for ( int index:match_2dkp_index_ )
+        matched[index] = true;//特征点中匹配成功的设为true
+    //对于不是匹配点的关键点
+    for ( int i=0; i<keypoints_curr_.size(); i++ )
+    {
+        if ( matched[i] == true )   
+            continue;
+        double d = ref_->findDepth ( keypoints_curr_[i] );
+        if ( d<0 )  
+            continue;
+        Vector3d p_world = ref_->camera_->pixel2world (
+            Vector2d ( keypoints_curr_[i].pt.x, keypoints_curr_[i].pt.y ), 
+            curr_->T_c_w_, d
+        );
+        Vector3d n = p_world - ref_->getCamCenter();
+        n.normalize();
+        MapPoint::Ptr map_point = MapPoint::createMapPoint(
+            p_world, n, descriptors_curr_.row(i).clone(), curr_.get()
+        );
+        map_->insertMapPoint( map_point );
+    }
+}
+```
+* 方法之optimizeMap()
+```c
+void VisualOdometry::optimizeMap()
+{
+    // remove the hardly seen and no visible points 
+    for ( auto iter = map_->map_points_.begin(); iter != map_->map_points_.end(); )
+    {
+        if ( !curr_->isInFrame(iter->second->pos_) )
+        {
+            iter = map_->map_points_.erase(iter);//如果不在当前帧画面中，就剔除掉
+            continue;
+        }
+        float match_ratio = float(iter->second->matched_times_)/iter->second->visible_times_;
+        if ( match_ratio < map_point_erase_ratio_ )
+        {
+            iter = map_->map_points_.erase(iter);
+            continue;
+        }
+        
+        double angle = getViewAngle( curr_, iter->second );
+        if ( angle > M_PI/6. )
+        {
+            iter = map_->map_points_.erase(iter);
+            continue;
+        }
+        if ( iter->second->good_ == false )
+        {
+            // TODO try triangulate this map point 
+        }
+        iter++;
+    }
+    //如果匹配点少于100个就调用addmappoint命令
+    if ( match_2dkp_index_.size()<100 )
+        addMapPoints();
+    //如果大于1000，就减少
+    if ( map_->map_points_.size() > 1000 )  
+    {
+        // TODO map is too large, remove some one 
+        map_point_erase_ratio_ += 0.05;
+    }
+    else 
+        map_point_erase_ratio_ = 0.1;
+    cout<<"map points: "<<map_->map_points_.size()<<endl;
+}
+```

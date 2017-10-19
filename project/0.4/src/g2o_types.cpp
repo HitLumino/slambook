@@ -54,6 +54,8 @@ void EdgeProjectXYZRGBD::linearizeOplus()
     _jacobianOplusXj ( 2,4 ) = 0;
     _jacobianOplusXj ( 2,5 ) = -1;
 }
+
+
 /*这个computeError()只用了1个节点
  * g2o::VertexSBAPointXYZ*> ( _vertices[0])
  * _error = _measurement - pose->estimate().map ( point_ );

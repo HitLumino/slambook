@@ -189,6 +189,7 @@ void VisualOdometry::poseEstimationPnP()
                            SO3 ( rvec.at<double> ( 0,0 ), rvec.at<double> ( 1,0 ), rvec.at<double> ( 2,0 ) ),
                            Vector3d ( tvec.at<double> ( 0,0 ), tvec.at<double> ( 1,0 ), tvec.at<double> ( 2,0 ) )
                        );
+    cout<<"22222"<<endl;
 
     // using bundle adjustment to optimize the pose
     typedef g2o::BlockSolver<g2o::BlockSolverTraits<6,2>> Block;
@@ -204,7 +205,7 @@ void VisualOdometry::poseEstimationPnP()
         T_c_w_estimated_.rotation_matrix(), T_c_w_estimated_.translation()
     ));
     optimizer.addVertex ( pose );
-
+cout<<"22222"<<endl;
     // edges
     for ( int i=0; i<inliers.rows; i++ )
     {
@@ -219,9 +220,9 @@ void VisualOdometry::poseEstimationPnP()
         edge->setInformation ( Eigen::Matrix2d::Identity() );
         optimizer.addEdge ( edge );
         // set the inlier map points 
-        match_3dpts_[index]->matched_times_++;
+        match_3dpts_[index]->matched_times_++;//在这里增加
     }
-
+cout<<"22222"<<endl;
     optimizer.initializeOptimization();
     optimizer.optimize ( 10 );
 
@@ -229,7 +230,7 @@ void VisualOdometry::poseEstimationPnP()
         pose->estimate().rotation(),
         pose->estimate().translation()
     );
-    
+    cout<<"22222"<<endl;
     cout<<"T_c_w_estimated_: "<<endl<<T_c_w_estimated_.matrix()<<endl;
 }
 
@@ -254,10 +255,11 @@ bool VisualOdometry::checkEstimatedPose()
 
 bool VisualOdometry::checkKeyFrame()
 {
-    SE3 T_r_c = ref_->T_c_w_ * T_c_w_estimated_.inverse();
-    Sophus::Vector6d d = T_r_c.log();
-    Vector3d trans = d.head<3>();
-    Vector3d rot = d.tail<3>();
+    //为什么要？？？？
+    SE3 T_r_c = ref_->T_c_w_ * T_c_w_estimated_.inverse();//上一帧与当前帧的位姿变换
+    Sophus::Vector6d d = T_r_c.log();//T的对数映射---->6维向量
+    Vector3d trans = d.head<3>(); //获取向量的前n个元素：vector.head(n);
+    Vector3d rot = d.tail<3>();//获取向量尾部的n个元素：vector.tail(n);
     if ( rot.norm() >key_frame_min_rot || trans.norm() >key_frame_min_trans )
         return true;
     return false;
@@ -276,10 +278,10 @@ void VisualOdometry::addKeyFrame()
             Vector3d p_world = ref_->camera_->pixel2world (
                 Vector2d ( keypoints_curr_[i].pt.x, keypoints_curr_[i].pt.y ), curr_->T_c_w_, d
             );
-            Vector3d n = p_world - ref_->getCamCenter();
+            Vector3d n = p_world - ref_->getCamCenter();//?????
             n.normalize();
             MapPoint::Ptr map_point = MapPoint::createMapPoint(
-                p_world, n, descriptors_curr_.row(i).clone(), curr_.get()
+                p_world, n, descriptors_curr_.row(i).clone(), curr_.get()//frame
             );
             map_->insertMapPoint( map_point );
         }
@@ -297,7 +299,7 @@ void VisualOdometry::addMapPoints()
         matched[index] = true;
     for ( int i=0; i<keypoints_curr_.size(); i++ )
     {
-        if ( matched[i] == true )   
+        if ( matched[i] == true )
             continue;
         double d = ref_->findDepth ( keypoints_curr_[i] );
         if ( d<0 )  
@@ -318,14 +320,14 @@ void VisualOdometry::addMapPoints()
 void VisualOdometry::optimizeMap()
 {
     // remove the hardly seen and no visible points 
-    for ( auto iter = map_->map_points_.begin(); iter != map_->map_points_.end(); )
+    for ( auto iter = map_->map_points_.begin(); iter != map_->map_points_.end(); )//遍历map点
     {
         if ( !curr_->isInFrame(iter->second->pos_) )
         {
-            iter = map_->map_points_.erase(iter);
+            iter = map_->map_points_.erase(iter);//如果不在当前帧画面中，就剔除掉
             continue;
         }
-        float match_ratio = float(iter->second->matched_times_)/iter->second->visible_times_;
+        float match_ratio = float(iter->second->matched_times_)/iter->second->visible_times_;//在g2o优化里增加；featureMatching()增加visible_times_
         if ( match_ratio < map_point_erase_ratio_ )
         {
             iter = map_->map_points_.erase(iter);
