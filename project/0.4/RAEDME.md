@@ -2,7 +2,6 @@
 <!-- TOC -->
 
 - [VO notes：](#vo-notes%EF%BC%9A)
-    - [camera类：(相机模型)](#camera%E7%B1%BB%EF%BC%9A%E7%9B%B8%E6%9C%BA%E6%A8%A1%E5%9E%8B)
     - [Config类：](#config%E7%B1%BB%EF%BC%9A)
         - [config.h](#configh)
         - [config.cpp](#configcpp)
@@ -17,9 +16,10 @@
         - [map.cpp](#mapcpp)
 
 <!-- /TOC -->
-**东西比较杂，按照代码阅读过程依次记录。**  
 
-## camera类：(相机模型)
+**东西比较杂，按照代码阅读过程依次记录**
+
+##camera类:(相机模型)
 ```c
 class Camera
 {
@@ -36,7 +36,7 @@ public:
     Vector3d world2camera( const Vector3d& p_w, const SE3& T_c_w );
     Vector3d camera2world( const Vector3d& p_c, const SE3& T_c_w );
     Vector2d camera2pixel( const Vector3d& p_c );
-    Vector3d pixel2camera( const Vector2d& p_p, double depth=1 ); 
+    Vector3d pixel2camera( const Vector2d& p_p, double depth=1 );
     Vector3d pixel2world ( const Vector2d& p_p, const SE3& T_c_w, double depth=1 );
     Vector2d world2pixel ( const Vector3d& p_w, const SE3& T_c_w );
 
@@ -55,10 +55,10 @@ public:
                               const Vector3d & translation_);
   SE3                        (const SE3 & other);
 ```
-由上面构造函数可以看出，`SE3`大体上由旋转矩阵和平移`SO3/matrix3d`+`vector3d`,还可以用四元素。  
-再来看几个常用的操作符:  
+由上面构造函数可以看出，`SE3`大体上由旋转矩阵和平移`SO3/matrix3d`+`vector3d`,还可以用四元素。
+再来看几个常用的操作符:
 
-* SE3显示输出<< :
+    * SE3显示输出<< :
 ```c
 inline std::ostream& operator <<(std::ostream & out_str,
                                  const SE3 &  se3)
@@ -67,28 +67,31 @@ inline std::ostream& operator <<(std::ostream & out_str,
   return out_str;
 }//先输出他的旋转矩阵，然后输出平移向量的转置
 ```
-* SO3转换成矩阵`Matrix3d` rotation_matrix()
+
+    * SO3转换成矩阵`Matrix3d` rotation_matrix()
+
 ```c
 Matrix3d rotation_matrix() const
   {
     return so3_.matrix();
   }
 ```
-* inverse()
+
+    * inverse()
 
 其次看一看
-`Matrix3d`和`Vector3d`:  
+`Matrix3d`和`Vector3d`:
 
-*  初始化
-*  转置a.transpose()
-*  共轭转置a.adjoint()
-*  vector的点乘v.dot()
-*  mat.trace()
-*  mat(0,0):取值
-*  vec(0):取值
+    * 初始化
+    * 转置a.transpose()
+    * 共轭转置a.adjoint()
+    * vector的点乘v.dot()
+    * mat.trace()
+    * mat(0,0):取值
+    * vec(0):取值
 
 ```c
-Matrix2d a;  
+Matrix2d a;
 a << 1, 2,3, 4;
 Vector3d  v(1,2,3);
 MatrixXf a(2,3); a << 1, 2, 3, 4, 5, 6;
@@ -97,12 +100,13 @@ a.transposeInPlace();//a = a.transpose(); // !!! do NOT do this !!!
 cout << "and after being transposed:\n" << a << endl;
 ```
 
-Eigen Transform class:    
+Eigen Transform class:
+
 ```c
-VectorNf p1, p2;//Apply the transformation to a point   
+VectorNf p1, p2;//Apply the transformation to a point
 p2 = t * p1;
 
-VectorNf vec1, vec2;//Apply the transformation to a vector  
+VectorNf vec1, vec2;//Apply the transformation to a vector
 vec2 = t.linear() * vec1;
 
 VectorNf n1, n2;
@@ -128,13 +132,15 @@ vecN = t.translation();//translation part
 vecN(0,0) vecN(1,0)  vecN(2,0) ;
 
 t.linear() = matNxN;
-matNxN = t.linear();//linear part   
+matNxN = t.linear();//linear part
 
-matNxN = t.rotation();//extract the rotation matrix 
+matNxN = t.rotation();//extract the rotation matrix
 
 
 ```
+
 camera类构造函数初始化
+
 ```c
 Camera::Camera()
 {
@@ -325,7 +331,9 @@ protected:
 ```
 
 ### VisualOdometry.cpp
-*  构造函数初始化
+
+* 构造函数初始化
+
 ```c
 //构造函数初始化
 VisualOdometry::VisualOdometry() :
